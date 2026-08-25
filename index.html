@@ -466,40 +466,24 @@ async function submitGlobalScore(force=false){
 }
 function escapeHtml(v){const d=document.createElement("div");d.textContent=v;return d.innerHTML;}
 async function loadLeaderboard(){
-  if(!leaderboardEnabled){
-    leaderboardRows.innerHTML='<div class="leaderboardEmpty">Leaderboard not configured.</div>';
-    return;
-  }
-
-  leaderboardRows.innerHTML='<div class="leaderboardEmpty">Testing connection…</div>';
+  leaderboardRows.innerHTML=
+    '<div class="leaderboardEmpty">Testing Supabase connection…</div>';
 
   try{
     const res=await fetch(
-      SUPABASE_URL + "/rest/v1/tree3_leaderboard?select=*",
-      {
-        method:"GET",
-        headers:{
-          "apikey":SUPABASE_PUBLISHABLE_KEY,
-          "Authorization":"Bearer "+SUPABASE_PUBLISHABLE_KEY
-        }
-      }
+      "https://ttlbeteukhgzskryyat.supabase.co/rest/v1/tree3_leaderboard?select=*&limit=1"
     );
 
     const text=await res.text();
 
-    if(!res.ok){
-      throw new Error("HTTP "+res.status+": "+text);
-    }
-
-    const data=JSON.parse(text);
-
     leaderboardRows.innerHTML=
-      '<div class="leaderboardEmpty">CONNECTED! Found '+data.length+' scores.</div>';
+      '<div class="leaderboardEmpty">HTTP '+res.status+
+      '<br><br>'+escapeHtml(text)+'</div>';
 
   }catch(error){
     leaderboardRows.innerHTML=
-      '<div class="leaderboardEmpty">ERROR:<br><br>'+
-      escapeHtml(error.message)+
+      '<div class="leaderboardEmpty">BROWSER ERROR:<br><br>'+
+      escapeHtml(error.name+" — "+error.message)+
       '</div>';
   }
 }
