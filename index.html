@@ -515,6 +515,7 @@ function containsBannedWord(name){
 }
 
 // Save/change username.
+
 async function savePlayerName(){
 
   if(!leaderboardEnabled)return;
@@ -538,9 +539,11 @@ async function savePlayerName(){
   try{
 
     // Find the account belonging to THIS device.
+    // We request the database ID so future edits target
+    // one exact row.
     const deviceCheck=await fetch(
       leaderboardTable+
-      "?select=player_name,score&device_id=eq."+
+      "?select=id,player_name,score,device_id&device_id=eq."+
       encodeURIComponent(deviceId),
       {
         headers:{
@@ -560,11 +563,18 @@ async function savePlayerName(){
 
       const account=deviceAccounts[0];
       const oldName=account.player_name;
+      const accountId=account.id;
 
-      // Username didn't change.
+      // Username didn't actually change.
       if(oldName===newName){
+
         playerName=oldName;
         playerNameInput.value=oldName;
+
+        localStorage.setItem(
+          "tree3PlayerName",
+          oldName
+        );
 
         setOnlineStatus(
           "Username saved."
@@ -573,10 +583,11 @@ async function savePlayerName(){
         return;
       }
 
-      // Make sure nobody else already owns the new username.
+      // Make sure another account doesn't already use
+      // the requested username.
       const nameCheck=await fetch(
         leaderboardTable+
-        "?select=player_name&player_name=eq."+
+        "?select=id,player_name&player_name=eq."+
         encodeURIComponent(newName),
         {
           headers:{
@@ -592,6 +603,7 @@ async function savePlayerName(){
       const nameAccounts=await nameCheck.json();
 
       if(nameAccounts.length>0){
+
         setOnlineStatus(
           "That username is already taken.",
           true
@@ -601,16 +613,16 @@ async function savePlayerName(){
         return;
       }
 
-      // Change THIS device's username.
+      // Update the EXACT database row using its primary key.
       const update=await fetch(
         leaderboardTable+
-        "?device_id=eq."+
-        encodeURIComponent(deviceId),
+        "?id=eq."+
+        encodeURIComponent(accountId),
         {
           method:"PATCH",
           headers:{
             ...supabaseHeaders,
-            "Prefer":"return=minimal"
+            "Prefer":"return=representation"
           },
           body:JSON.stringify({
             player_name:newName
@@ -622,6 +634,20 @@ async function savePlayerName(){
         throw new Error(await update.text());
       }
 
+      const updatedRows=await update.json();
+
+      // Make absolutely sure Supabase actually changed the row.
+      if(
+        !Array.isArray(updatedRows) ||
+        updatedRows.length!==1 ||
+        updatedRows[0].player_name!==newName
+      ){
+        throw new Error(
+          "Supabase did not confirm the username change."
+        );
+      }
+
+      // Update local state only after Supabase confirms it.
       playerName=newName;
       playerNameInput.value=newName;
 
@@ -641,7 +667,7 @@ async function savePlayerName(){
     // Make sure the username isn't already taken.
     const nameCheck=await fetch(
       leaderboardTable+
-      "?select=player_name&player_name=eq."+
+      "?select=id,player_name&player_name=eq."+
       encodeURIComponent(newName),
       {
         headers:{
@@ -657,6 +683,7 @@ async function savePlayerName(){
     const nameAccounts=await nameCheck.json();
 
     if(nameAccounts.length>0){
+
       setOnlineStatus(
         "That username is already taken.",
         true
@@ -672,7 +699,7 @@ async function savePlayerName(){
         method:"POST",
         headers:{
           ...supabaseHeaders,
-          "Prefer":"return=minimal"
+          "Prefer":"return=representation"
         },
         body:JSON.stringify({
           player_name:newName,
@@ -684,6 +711,17 @@ async function savePlayerName(){
 
     if(!insert.ok){
       throw new Error(await insert.text());
+    }
+
+    const createdRows=await insert.json();
+
+    if(
+      !Array.isArray(createdRows) ||
+      createdRows.length!==1
+    ){
+      throw new Error(
+        "Supabase did not confirm the account creation."
+      );
     }
 
     playerName=newName;
@@ -707,7 +745,6 @@ async function savePlayerName(){
     );
   }
 }
-
 
 // Submit the player's best score.
 async function submitGlobalScore(force=false){
