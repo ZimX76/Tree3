@@ -551,65 +551,535 @@ async function submitGlobalScore(force=false){
       "Could not submit score: "+error.message,
       true
     );
-  }
-} 
-function escapeHtml(v){const d=document.createElement("div");d.textContent=v;return d.innerHTML;}
-async function loadLeaderboard(){
-  if(!leaderboardEnabled){
-    leaderboardRows.innerHTML='<div class="leaderboardEmpty">Set your Supabase URL and publishable key in the game code first.</div>';
+const savedTrees=[];
+
+// ===== GLOBAL LEADERBOARD =====
+const SUPABASE_URL="https://ttlbeteukhgzskryyat.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_3DCPeWb3wUEAOtyTZ_tw9A_zvIQZYEc";
+
+const leaderboardEnabled=
+  !SUPABASE_URL.includes("PASTE_YOUR") &&
+  !SUPABASE_PUBLISHABLE_KEY.includes("PASTE_YOUR");
+
+const leaderboardTable=`${SUPABASE_URL}/rest/v1/tree3_leaderboard`;
+
+const supabaseHeaders={
+  "apikey":SUPABASE_PUBLISHABLE_KEY,
+  "Content-Type":"application/json"
+};
+
+const playerNameInput=document.getElementById("playerName");
+const onlineStatus=document.getElementById("onlineStatus");
+const leaderboardPanel=document.getElementById("leaderboardPanel");
+const leaderboardRows=document.getElementById("leaderboardRows");
+
+// Give this device a permanent local ID.
+let deviceId=localStorage.getItem("tree3DeviceId");
+
+if(!deviceId){
+  deviceId=
+    crypto.randomUUID ?
+    crypto.randomUUID() :
+    "device-"+Date.now()+"-"+Math.random().toString(36).slice(2);
+
+  localStorage.setItem("tree3DeviceId",deviceId);
+}
+
+let playerName=localStorage.getItem("tree3PlayerName")||"";
+let submittedGlobalBest=Number(
+  localStorage.getItem("tree3GlobalBest")||0
+);
+
+playerNameInput.value=playerName;
+
+// Words that are not allowed in usernames.
+const bannedWords=[
+  "fuck",
+  "shit",
+  "bitch",
+  "asshole",
+  "bastard",
+  "dick",
+  "piss",
+  "cunt",
+  "nigger",
+  "nigga",
+  "faggot",
+  "fag",
+  "retard"
+];
+
+function setOnlineStatus(t,bad=false){
+  onlineStatus.textContent=t;
+  onlineStatus.className=
+    "onlineStatus"+(bad?" bad":"");
+}
+
+function cleanPlayerName(n){
+  return n
+    .trim()
+    .replace(/[^a-zA-Z0-9 _-]/g,"")
+    .slice(0,20);
+}
+
+function containsBannedWord(name){
+  const lower=name.toLowerCase();
+
+  return bannedWords.some(word=>{
+    return lower.includes(word);
+  });
+}
+
+// Save/change username.
+async function savePlayerName(){
+
+  if(!leaderboardEnabled)return;
+
+  const newName=cleanPlayerName(playerNameInput.value);
+
+  if(!newName){
+    setOnlineStatus("Please enter a username.",true);
     return;
   }
 
-  leaderboardRows.innerHTML='<div class="leaderboardEmpty">Loading…</div>';
+  if(containsBannedWord(newName)){
+    setOnlineStatus(
+      "That username isn't allowed.",
+      true
+    );
+    playerNameInput.value=playerName;
+    return;
+  }
 
   try{
-    const url=leaderboardTable+'?select=player_name,score,created_at&order=score.desc&order=created_at.asc&limit=100';
 
-    const res=await fetch(url,{
-      headers:{
-        "apikey":SUPABASE_PUBLISHABLE_KEY,
-        "Authorization":`Bearer ${SUPABASE_PUBLISHABLE_KEY}`
+    // Find the account belonging to THIS device.
+    const deviceCheck=await fetch(
+      leaderboardTable+
+      "?select=player_name,score&device_id=eq."+
+      encodeURIComponent(deviceId),
+      {
+        headers:{
+          "apikey":SUPABASE_PUBLISHABLE_KEY
+        }
       }
-    });
+    );
+
+    if(!deviceCheck.ok){
+      throw new Error(await deviceCheck.text());
+    }
+
+    const deviceAccounts=await deviceCheck.json();
+
+    // This device already has an account.
+    if(deviceAccounts.length>0){
+
+      const account=deviceAccounts[0];
+      const oldName=account.player_name;
+
+      // Username didn't change.
+      if(oldName===newName){
+        playerName=oldName;
+        playerNameInput.value=oldName;
+
+        setOnlineStatus(
+          "Username saved."
+        );
+
+        return;
+      }
+
+      // Make sure nobody else already owns the new username.
+      const nameCheck=await fetch(
+        leaderboardTable+
+        "?select=player_name&player_name=eq."+
+        encodeURIComponent(newName),
+        {
+          headers:{
+            "apikey":SUPABASE_PUBLISHABLE_KEY
+          }
+        }
+      );
+
+      if(!nameCheck.ok){
+        throw new Error(await nameCheck.text());
+      }
+
+      const nameAccounts=await nameCheck.json();
+
+      if(nameAccounts.length>0){
+        setOnlineStatus(
+          "That username is already taken.",
+          true
+        );
+
+        playerNameInput.value=oldName;
+        return;
+      }
+
+      // Change THIS device's username.
+      const update=await fetch(
+        leaderboardTable+
+        "?device_id=eq."+
+        encodeURIComponent(deviceId),
+        {
+          method:"PATCH",
+          headers:{
+            ...supabaseHeaders,
+            "Prefer":"return=minimal"
+          },
+          body:JSON.stringify({
+            player_name:newName
+          })
+        }
+      );
+
+      if(!update.ok){
+        throw new Error(await update.text());
+      }
+
+      playerName=newName;
+      playerNameInput.value=newName;
+
+      localStorage.setItem(
+        "tree3PlayerName",
+        newName
+      );
+
+      setOnlineStatus(
+        "Username changed to "+newName+"."
+      );
+
+      return;
+    }
+
+    // This device doesn't have an account yet.
+    // Make sure the username isn't already taken.
+    const nameCheck=await fetch(
+      leaderboardTable+
+      "?select=player_name&player_name=eq."+
+      encodeURIComponent(newName),
+      {
+        headers:{
+          "apikey":SUPABASE_PUBLISHABLE_KEY
+        }
+      }
+    );
+
+    if(!nameCheck.ok){
+      throw new Error(await nameCheck.text());
+    }
+
+    const nameAccounts=await nameCheck.json();
+
+    if(nameAccounts.length>0){
+      setOnlineStatus(
+        "That username is already taken.",
+        true
+      );
+
+      return;
+    }
+
+    // Create the account for this device.
+    const insert=await fetch(
+      leaderboardTable,
+      {
+        method:"POST",
+        headers:{
+          ...supabaseHeaders,
+          "Prefer":"return=minimal"
+        },
+        body:JSON.stringify({
+          player_name:newName,
+          score:0,
+          device_id:deviceId
+        })
+      }
+    );
+
+    if(!insert.ok){
+      throw new Error(await insert.text());
+    }
+
+    playerName=newName;
+    playerNameInput.value=newName;
+
+    localStorage.setItem(
+      "tree3PlayerName",
+      newName
+    );
+
+    setOnlineStatus(
+      "Username created!"
+    );
+
+  }catch(error){
+
+    setOnlineStatus(
+      "Could not save username: "+
+      error.message,
+      true
+    );
+  }
+}
+
+
+// Submit the player's best score.
+async function submitGlobalScore(force=false){
+
+  if(!leaderboardEnabled)return;
+
+  if(!playerName){
+    await savePlayerName();
+  }
+
+  if(!playerName)return;
+
+  try{
+
+    const check=await fetch(
+      leaderboardTable+
+      "?select=score&device_id=eq."+
+      encodeURIComponent(deviceId),
+      {
+        headers:{
+          "apikey":SUPABASE_PUBLISHABLE_KEY
+        }
+      }
+    );
+
+    if(!check.ok){
+      throw new Error(await check.text());
+    }
+
+    const existing=await check.json();
+
+    if(existing.length>0){
+
+      const oldScore=Number(existing[0].score);
+
+      if(score<=oldScore){
+        submittedGlobalBest=oldScore;
+
+        localStorage.setItem(
+          "tree3GlobalBest",
+          String(oldScore)
+        );
+
+        return;
+      }
+
+      const update=await fetch(
+        leaderboardTable+
+        "?device_id=eq."+
+        encodeURIComponent(deviceId),
+        {
+          method:"PATCH",
+          headers:{
+            ...supabaseHeaders,
+            "Prefer":"return=minimal"
+          },
+          body:JSON.stringify({
+            score:score
+          })
+        }
+      );
+
+      if(!update.ok){
+        throw new Error(await update.text());
+      }
+
+    }else{
+
+      const insert=await fetch(
+        leaderboardTable,
+        {
+          method:"POST",
+          headers:{
+            ...supabaseHeaders,
+            "Prefer":"return=minimal"
+          },
+          body:JSON.stringify({
+            player_name:playerName,
+            score:score,
+            device_id:deviceId
+          })
+        }
+      );
+
+      if(!insert.ok){
+        throw new Error(await insert.text());
+      }
+    }
+
+    submittedGlobalBest=score;
+
+    localStorage.setItem(
+      "tree3GlobalBest",
+      String(score)
+    );
+
+    setOnlineStatus(
+      "Score submitted! Your best: "+score
+    );
+
+  }catch(error){
+
+    setOnlineStatus(
+      "Could not submit score: "+
+      error.message,
+      true
+    );
+  }
+}
+
+
+function escapeHtml(v){
+  const d=document.createElement("div");
+  d.textContent=v;
+  return d.innerHTML;
+}
+
+
+async function loadLeaderboard(){
+
+  if(!leaderboardEnabled){
+    leaderboardRows.innerHTML=
+      '<div class="leaderboardEmpty">'+
+      'Set your Supabase URL and publishable key in the game code first.'+
+      '</div>';
+
+    return;
+  }
+
+  leaderboardRows.innerHTML=
+    '<div class="leaderboardEmpty">Loading…</div>';
+
+  try{
+
+    const url=
+      leaderboardTable+
+      '?select=player_name,score,created_at'+
+      '&order=score.desc'+
+      '&order=created_at.asc'+
+      '&limit=100';
+
+    const res=await fetch(
+      url,
+      {
+        headers:{
+          "apikey":SUPABASE_PUBLISHABLE_KEY,
+          "Authorization":
+            `Bearer ${SUPABASE_PUBLISHABLE_KEY}`
+        }
+      }
+    );
 
     if(!res.ok){
       const text=await res.text();
-      throw new Error(text||`HTTP ${res.status}`);
+      throw new Error(
+        text||`HTTP ${res.status}`
+      );
     }
 
     const data=await res.json();
 
     if(!data.length){
-      leaderboardRows.innerHTML='<div class="leaderboardEmpty">No scores yet. Be the first!</div>';
+
+      leaderboardRows.innerHTML=
+        '<div class="leaderboardEmpty">'+
+        'No scores yet. Be the first!'+
+        '</div>';
+
       return;
     }
 
-    leaderboardRows.innerHTML=data.map((row,i)=>{
-      const rank=i+1;
-      const medal=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
+    leaderboardRows.innerHTML=
+      data.map((row,i)=>{
 
-      const me=
-        playerName &&
-        row.player_name===playerName &&
-        Number(row.score)===submittedGlobalBest;
+        const rank=i+1;
 
-      return `<div class="leaderboardRow${me?' leaderboardMe':''}">
-        <div class="leaderboardRank">${medal}</div>
-        <div>${escapeHtml(row.player_name)}</div>
-        <div class="leaderboardScore">${Number(row.score).toLocaleString()}</div>
-      </div>`;
-    }).join("");
+        const medal=
+          rank===1?'🥇':
+          rank===2?'🥈':
+          rank===3?'🥉':
+          rank;
+
+        const me=
+          playerName &&
+          row.player_name===playerName &&
+          Number(row.score)===submittedGlobalBest;
+
+        return `
+          <div class="leaderboardRow${me?' leaderboardMe':''}">
+            <div class="leaderboardRank">${medal}</div>
+            <div>${escapeHtml(row.player_name)}</div>
+            <div class="leaderboardScore">
+              ${Number(row.score).toLocaleString()}
+            </div>
+          </div>
+        `;
+
+      }).join("");
 
   }catch(error){
+
     leaderboardRows.innerHTML=
-      '<div class="leaderboardEmpty">Could not load leaderboard.<br>'+
+      '<div class="leaderboardEmpty">'+
+      'Could not load leaderboard.<br>'+
       escapeHtml(error.message)+
       '</div>';
   }
 }
-function openLeaderboard(){leaderboardPanel.hidden=false;loadLeaderboard();}function closeLeaderboard(){leaderboardPanel.hidden=true;}
-document.getElementById("saveName").onclick=savePlayerName;playerNameInput.addEventListener("keydown",e=>{if(e.key==="Enter")savePlayerName();});document.getElementById("leaderboardBtn").onclick=openLeaderboard;document.getElementById("refreshLeaderboard").onclick=loadLeaderboard;document.getElementById("closeLeaderboard").onclick=closeLeaderboard;leaderboardPanel.addEventListener("click",e=>{if(e.target===leaderboardPanel)closeLeaderboard();});setOnlineStatus(leaderboardEnabled?"Online leaderboard ready.":"Online leaderboard not configured yet.",!leaderboardEnabled);
 
+
+function openLeaderboard(){
+  leaderboardPanel.hidden=false;
+  loadLeaderboard();
+}
+
+function closeLeaderboard(){
+  leaderboardPanel.hidden=true;
+}
+
+
+document.getElementById("saveName").onclick=
+  savePlayerName;
+
+playerNameInput.addEventListener(
+  "keydown",
+  e=>{
+    if(e.key==="Enter"){
+      savePlayerName();
+    }
+  }
+);
+
+document.getElementById("leaderboardBtn").onclick=
+  openLeaderboard;
+
+document.getElementById("refreshLeaderboard").onclick=
+  loadLeaderboard;
+
+document.getElementById("closeLeaderboard").onclick=
+  closeLeaderboard;
+
+leaderboardPanel.addEventListener(
+  "click",
+  e=>{
+    if(e.target===leaderboardPanel){
+      closeLeaderboard();
+    }
+  }
+);
+
+setOnlineStatus(
+  leaderboardEnabled ?
+  "Online leaderboard ready." :
+  "Online leaderboard not configured yet.",
+  !leaderboardEnabled
+);
 
 function snapshotTree(){
   return nodes.map(n=>({
