@@ -443,7 +443,7 @@ const SUPABASE_URL="https://ttlbeteukhgzskryyat.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY="sb_publishable_3DCPeWb3wUEAOtyTZ_tw9A_zvIQZYEc";
 const leaderboardEnabled=!SUPABASE_URL.includes("PASTE_YOUR")&&!SUPABASE_PUBLISHABLE_KEY.includes("PASTE_YOUR");
 const leaderboardTable=`${SUPABASE_URL}/rest/v1/tree3_leaderboard`;
-const supabaseHeaders={"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":`Bearer ${SUPABASE_PUBLISHABLE_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal"};
+const supabaseHeaders={"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json","Prefer":"return=minimal"};
 const playerNameInput=document.getElementById("playerName"),onlineStatus=document.getElementById("onlineStatus"),leaderboardPanel=document.getElementById("leaderboardPanel"),leaderboardRows=document.getElementById("leaderboardRows");
 let playerName=localStorage.getItem("tree3PlayerName")||"";
 let submittedGlobalBest=Number(localStorage.getItem("tree3GlobalBest")||0);
@@ -470,7 +470,7 @@ async function loadLeaderboard(){
   leaderboardRows.innerHTML='<div class="leaderboardEmpty">Loading…</div>';
   try{
     const url=leaderboardTable+'?select=player_name,score,created_at&order=score.desc&order=created_at.asc&limit=100';
-    const res=await fetch(url,{headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":`Bearer ${SUPABASE_PUBLISHABLE_KEY}`}});
+    const res=await fetch(url,{headers:{"apikey":SUPABASE_PUBLISHABLE_KEY}});
     if(!res.ok){const text=await res.text();throw new Error(text||`HTTP ${res.status}`);}
     const data=await res.json();
     if(!data.length){leaderboardRows.innerHTML='<div class="leaderboardEmpty">No scores yet. Be the first!</div>';return;}
