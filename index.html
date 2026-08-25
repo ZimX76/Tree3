@@ -453,6 +453,107 @@ function cleanPlayerName(n){return n.trim().replace(/[^a-zA-Z0-9 _-]/g,"").slice
 function savePlayerName(){playerName=cleanPlayerName(playerNameInput.value)||"Anonymous";playerNameInput.value=playerName;localStorage.setItem("tree3PlayerName",playerName);setOnlineStatus(leaderboardEnabled?"Name saved • Online leaderboard ready.":"Name saved • Add Supabase keys to enable the leaderboard.",!leaderboardEnabled);}
 async function submitGlobalScore(force=false){
   if(!leaderboardEnabled)return;
+
+  if(!playerName)savePlayerName();
+  if(!playerName || playerName==="Anonymous")return;
+
+  try{
+    // Check whether this player already has a score
+    const check=await fetch(
+      leaderboardTable+
+      "?select=score&player_name=eq."+
+      encodeURIComponent(playerName),
+      {
+        headers:{
+          "apikey":SUPABASE_PUBLISHABLE_KEY
+        }
+      }
+    );
+
+    if(!check.ok){
+      throw new Error(await check.text());
+    }
+
+    const existing=await check.json();
+
+    // Player already exists
+    if(existing.length>0){
+
+      const oldScore=Number(existing[0].score);
+
+      // Don't replace a higher score with a lower one
+      if(score<=oldScore){
+        submittedGlobalBest=oldScore;
+        localStorage.setItem(
+          "tree3GlobalBest",
+          String(oldScore)
+        );
+        return;
+      }
+
+      // Update their existing row
+      const update=await fetch(
+        leaderboardTable+
+        "?player_name=eq."+
+        encodeURIComponent(playerName),
+        {
+          method:"PATCH",
+          headers:{
+            "apikey":SUPABASE_PUBLISHABLE_KEY,
+            "Content-Type":"application/json"
+          },
+          body:JSON.stringify({
+            score:score
+          })
+        }
+      );
+
+      if(!update.ok){
+        throw new Error(await update.text());
+      }
+
+    }else{
+
+      // First score from this player
+      const insert=await fetch(
+        leaderboardTable,
+        {
+          method:"POST",
+          headers:{
+            "apikey":SUPABASE_PUBLISHABLE_KEY,
+            "Content-Type":"application/json"
+          },
+          body:JSON.stringify({
+            player_name:playerName,
+            score:score
+          })
+        }
+      );
+
+      if(!insert.ok){
+        throw new Error(await insert.text());
+      }
+    }
+
+    submittedGlobalBest=score;
+
+    localStorage.setItem(
+      "tree3GlobalBest",
+      String(score)
+    );
+
+    setOnlineStatus(
+      "Score submitted! Your best: "+score
+    );
+
+  }catch(error){
+    setOnlineStatus(
+      "Could not submit score: "+error.message,
+      true
+    );
+  }
+}
+  if(!leaderboardEnabled)return;
   if(!playerName)savePlayerName();
   if(!playerName||playerName==="Anonymous")return;
   if(!force&&score<=submittedGlobalBest)return;
