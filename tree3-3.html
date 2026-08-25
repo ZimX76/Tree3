@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tree(3)</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;color:#eee;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;
+  background:
+    radial-gradient(circle at 18% 18%,rgba(103,132,75,.22),transparent 28%),
+    radial-gradient(circle at 78% 12%,rgba(63,96,55,.24),transparent 30%),
+    linear-gradient(180deg,#17271b 0%,#102017 46%,#0b1510 100%);
+}
+header{width:min(1100px,96vw);padding:18px 0 10px;display:flex;justify-content:space-between;align-items:center}
+h1{margin:0;font-size:32px}.stats{display:flex;gap:20px;font-size:18px}
+.wrap{width:min(1100px,96vw);display:grid;grid-template-columns:1fr 280px;gap:16px}
+canvas{
+  width:100%;height:auto;
+  background:linear-gradient(180deg,#29442b 0%,#203822 48%,#172b19 100%);
+  border:2px solid #405d3d;border-radius:14px;cursor:crosshair;touch-action:none;
+  box-shadow:inset 0 0 70px rgba(0,0,0,.35),0 8px 28px rgba(0,0,0,.35);
+}
+aside{background:#181818;border:1px solid #333;border-radius:12px;padding:16px}
+button{width:100%;padding:12px;margin:5px 0;border:0;border-radius:8px;background:#333;color:white;font-size:16px;cursor:pointer}
+button:hover{background:#444}.colors{display:flex;gap:10px;margin:10px 0 16px}
+.color{width:48px;height:48px;border-radius:50%;border:3px solid transparent;cursor:pointer}
+.selected{border-color:#fff;box-shadow:0 0 0 2px #777}
+#red{background:#e45756}#green{background:#55a868}#blue{background:#4c78a8}
+.hint{color:#aaa;line-height:1.45;font-size:14px}
+#message{min-height:48px;padding:10px;background:#222;border-radius:8px;margin-top:10px}
+.danger{color:#ff7777}.good{color:#8de09a}
+.trees{max-height:160px;overflow:auto;margin-top:10px}.treeRow{font-size:13px;padding:5px 0;border-bottom:1px solid #2b2b2b}
+ .galleryGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:360px;overflow-y:auto;padding:3px;align-items:start}
+.galleryCard{background:#111;border:1px solid #333;border-radius:8px;padding:4px;min-width:0;cursor:pointer}
+.galleryCard:hover{border-color:#888}
+.galleryCard canvas{display:block;width:100%;height:auto;aspect-ratio:360/285;border:0;border-radius:5px;cursor:pointer}
+.galleryLabel{font-weight:700;margin-top:3px;font-size:12px}.gallerySub{font-size:9px;color:#999}
+.galleryEmpty{color:#888;font-size:12px;padding:10px 2px}
+.galleryZoom{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:20;display:flex;align-items:center;justify-content:center;padding:20px}
+.galleryZoom[hidden]{display:none!important}
+.zoomPanel{position:relative;width:min(800px,92vw);background:#181818;border:1px solid #444;border-radius:14px;padding:14px}
+.zoomPanel canvas{display:block;width:100%;height:auto;background:#111;border-radius:8px}
+#closeZoom{position:absolute;right:10px;top:10px;z-index:2;width:auto;padding:8px 12px;margin:0;background:#333}
+#zoomLabel{text-align:center;font-weight:700;padding-top:8px}
+.lossPanel{margin-top:10px;padding:10px;background:#211818;border:1px solid #633;border-radius:9px}
+.lossPanel[hidden]{display:none!important}.lossPanel h3{margin:0 0 8px;color:#ff7777}
+.lossTrees{display:grid;grid-template-columns:1fr 1fr;gap:7px}.lossTrees>div{min-width:0}
+.lossTrees b{font-size:11px;display:block;margin-bottom:3px}.lossTrees canvas{display:block;width:100%;height:auto;background:#111;border-radius:5px}
+
+.leaderboard{margin-top:14px;border-top:1px solid #333;padding-top:12px}.leaderboard h3{margin:0 0 8px}.leaderboardTop{display:flex;gap:6px}.leaderboardTop button{width:auto;flex:1}.leaderboardPanel{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:30;display:flex;align-items:center;justify-content:center;padding:18px}.leaderboardPanel[hidden]{display:none!important}.leaderboardBox{width:min(520px,94vw);max-height:88vh;overflow:auto;background:#181818;border:1px solid #444;border-radius:14px;padding:18px;box-shadow:0 15px 50px rgba(0,0,0,.55)}.leaderboardBox h2{margin:0 0 4px}.leaderboardBox .sub{color:#999;font-size:13px;margin-bottom:12px}.leaderboardRow{display:grid;grid-template-columns:48px 1fr 80px;gap:8px;align-items:center;padding:9px 7px;border-bottom:1px solid #292929}.leaderboardRow:first-child{border-top:1px solid #292929}.leaderboardRank{font-weight:800}.leaderboardScore{text-align:right;font-weight:800}.leaderboardMe{background:#263326}.leaderboardEmpty{color:#888;padding:18px 4px;text-align:center}.leaderboardClose{float:right;width:auto!important;margin:0!important;padding:7px 11px!important}.nameDialog{display:flex;gap:7px;margin:10px 0}.nameDialog input{flex:1;min-width:0;padding:11px;border-radius:8px;border:1px solid #555;background:#111;color:#fff;font-size:16px}.nameDialog button{width:auto;margin:0}.onlineStatus{font-size:12px;color:#8de09a;margin-top:6px}.onlineStatus.bad{color:#ff7777}
+
+@media(max-width:800px){.wrap{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>tree(3)</h1>
+<div class="stats">
+  <span>Round: <b id="round">1</b></span>
+  <span>Score: <b id="score">0</b></span>
+  <span>High Score: <b id="highScore">0</b></span>
+</div>
+</header>
+<div class="wrap">
+<canvas id="game" width="820" height="650"></canvas>
+<aside>
+<b>How tree(3) works</b>
+<p class="hint">
+  Build a new colored tree every round, starting from the fixed stump.
+  Round 1 uses 1 node, Round 2 uses 2 nodes, Round 3 uses 3 nodes, and so on.
+  Your goal is to make a tree that does <strong>not</strong> contain any tree
+  you've already made.
+</p>
+<p class="hint">
+  When checking for a match, previous trees can be <strong>rotated or shifted</strong>
+  around their connections, but their colors and connections must stay the same.
+  If an earlier tree can fit inside your new tree, <strong>you lose</strong>.
+  Your score is the total number of nodes you've successfully placed.
+</p>
+<p class="hint">Choose a color and click a visible connection point. New nodes snap into place and automatically form the connector chain.</p>
+<div class="colors"><div id="red" class="color selected"></div><div id="green" class="color"></div><div id="blue" class="color"></div></div>
+<button id="undo">Undo last node</button>
+<button id="submit">Submit tree</button>
+<button id="restart">Restart</button>
+<div class="leaderboard">
+  <h3>🏆 Global Leaderboard</h3>
+  <div class="nameDialog"><input id="playerName" maxlength="20" placeholder="Your player name"><button id="saveName" type="button">Save</button></div>
+  <div id="onlineStatus" class="onlineStatus">Online leaderboard not configured yet.</div>
+  <div class="leaderboardTop"><button id="leaderboardBtn" type="button">View Top 100</button></div>
+</div>
+<div id="message">Choose a color, then click a connection point.</div><div id="lossPanel" class="lossPanel" hidden>
+  <h3 id="lossTitle">Tree match found</h3>
+  <div class="lossTrees">
+    <div><b id="currentMatchLabel">Current tree</b><canvas id="currentMatchCanvas" width="360" height="285"></canvas></div>
+    <div><b id="previousMatchLabel">Previous tree</b><canvas id="previousMatchCanvas" width="360" height="285"></canvas></div>
+  </div>
+  <p class="hint">The highlighted nodes show the exact previous tree contained inside your new tree.</p>
+</div>
+<h3>Tree Gallery</h3>
+<div id="galleryGrid" class="galleryGrid"></div>
+<div id="galleryEmpty" class="galleryEmpty">Your completed trees will appear here.</div>
+<div id="galleryZoom" class="galleryZoom" hidden>
+  <div class="zoomPanel">
+    <button id="closeZoom" type="button">✕</button>
+    <canvas id="zoomCanvas" width="720" height="560"></canvas>
+    <div id="zoomLabel"></div>
+  </div>
+</div>
+<div id="leaderboardPanel" class="leaderboardPanel" hidden><div class="leaderboardBox"><button id="closeLeaderboard" class="leaderboardClose" type="button">✕</button><h2>🏆 Global Leaderboard</h2><div class="sub">Top 100 scores from every player</div><div id="leaderboardRows"><div class="leaderboardEmpty">Loading…</div></div><button id="refreshLeaderboard" type="button">Refresh</button></div></div>
+</aside>
+</div>
+<script>
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+const stump={x:410,y:570,w:78,h:70};
+const R=21, LINK=72;
+const colors=["#e45756","#55a868","#4c78a8"];
+let selected=0,round=1,score=0,highScore=Number(localStorage.getItem("tree3HighScore")||0),
+nodes=[],history=[],hover=null,gameOver=false;
+document.getElementById("highScore").textContent=highScore;
+
+function msg(t,c=""){const m=document.getElementById("message");m.className=c;m.textContent=t}
+function updateScore(){
+  document.getElementById("score").textContent=score;
+  if(score>highScore){
+    highScore=score;
+    localStorage.setItem("tree3HighScore",String(highScore));
+  }
+  document.getElementById("highScore").textContent=highScore;
+}
+
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function candidates(){
+  const out=[];
+  if(!nodes.length){
+    for(let a=0;a<Math.PI*2;a+=Math.PI/4) out.push({x:stump.x+Math.cos(a)*LINK,y:stump.y-Math.sin(a)*LINK,parent:null});
+  }else{
+    for(const n of nodes) for(let a=0;a<Math.PI*2;a+=Math.PI/4){
+      const x=n.x+Math.cos(a)*LINK,y=n.y+Math.sin(a)*LINK;
+      if(y>stump.y-20||x<35||x>canvas.width-35||y<30) continue;
+      if(dist({x,y},stump)<55) continue;
+      if(nodes.some(o=>dist({x,y},o)<35)) continue;
+      out.push({x,y,parent:n});
+    }
+  }
+  // dedupe points that can be reached from multiple parents
+  const seen=new Set(),clean=[];
+  for(const p of out){const k=Math.round(p.x)+","+Math.round(p.y);if(!seen.has(k)){seen.add(k);clean.push(p)}}
+  return clean;
+}
+function pointerPos(e){
+  const r=canvas.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height};
+}
+function nearestCandidate(p){
+  let best=null,bd=Infinity;
+  for(const c of candidates()){const d=dist(p,c);if(d<bd){bd=d;best=c}}
+  return bd<48?best:null;
+}
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Real-looking forest backdrop: distinct trees with trunks, forks, and canopies.
+  const bgTrees=[
+    {x:55,h:300,w:20,trunk:"#172a1a",leaf:"#294b2d"},
+    {x:150,h:245,w:23,trunk:"#1b301d",leaf:"#315434"},
+    {x:255,h:335,w:28,trunk:"#142719",leaf:"#24452a"},
+    {x:565,h:315,w:25,trunk:"#172b1a",leaf:"#2a4d2e"},
+    {x:675,h:265,w:22,trunk:"#1a301d",leaf:"#345637"},
+    {x:770,h:350,w:29,trunk:"#132519",leaf:"#24442a"}
+  ];
+
+  for(const t of bgTrees){
+    const base=canvas.height-105, top=base-t.h;
+
+    // trunk
+    ctx.fillStyle=t.trunk;
+    ctx.fillRect(t.x-t.w/2,top,t.w,t.h);
+
+    // large forked limbs
+    ctx.strokeStyle=t.trunk;
+    ctx.lineCap="round";
+    ctx.lineWidth=Math.max(7,t.w*.45);
+    ctx.beginPath();
+    ctx.moveTo(t.x,top+105);
+    ctx.quadraticCurveTo(t.x-42,top+60,t.x-78,top+30);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(t.x,top+135);
+    ctx.quadraticCurveTo(t.x+42,top+82,t.x+74,top+48);
+    ctx.stroke();
+
+    // distinct canopy clusters
+    ctx.fillStyle=t.leaf;
+    for(const [x,y,r] of [
+      [t.x-62,top+28,43],[t.x-28,top+2,52],
+      [t.x+15,top+17,58],[t.x+55,top+39,42],
+      [t.x,top+58,66]
+    ]){
+      ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  // Hazy distant tree line for depth.
+  ctx.fillStyle="rgba(38,68,42,.48)";
+  for(let x=-25;x<canvas.width+70;x+=78){
+    const h=125+((Math.abs(x)*7)%85), y=canvas.height-100-h;
+    ctx.fillRect(x,y,11,h);
+    for(const [ox,oy,r] of [[5,0,34],[-20,24,29],[25,25,31]]){
+      ctx.beginPath();ctx.arc(x+ox,y+oy,r,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  ctx.strokeStyle="rgba(86,116,70,.24)";ctx.lineWidth=3;
+  // connector chains
+  for(const n of nodes){
+    const p=n.parent||stump;
+    // Crooked branch with natural taper: thicker near the trunk,
+    // thinner toward the leaf. Depth is based on distance from the stump.
+    const dx=n.x-p.x,dy=n.y-p.y,len=Math.hypot(dx,dy);
+    const nx=-dy/len,ny=dx/len;
+    const bend=((n.x*17+n.y*31)%23)-11;
+    const cx=(p.x+n.x)/2+nx*bend;
+    const cy=(p.y+n.y)/2+ny*bend;
+
+    // Find how many generations this node is from the stump.
+    let depth=1,ancestor=n;
+    while(ancestor.parent && depth<20){depth++;ancestor=ancestor.parent}
+    // The first limb grows out of the stump almost like a solid wooden
+    // shoulder. Each generation then tapers naturally.
+    const baseWidth=Math.max(4,40-(depth-1)*7);
+    const innerWidth=baseWidth*.67;
+    const highlightWidth=Math.max(1.5,baseWidth*.18);
+
+    ctx.lineCap="round";
+    ctx.strokeStyle="#4a2c18";ctx.lineWidth=baseWidth+6;
+    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.quadraticCurveTo(cx,cy,n.x,n.y);ctx.stroke();
+
+    ctx.strokeStyle="#704a2a";ctx.lineWidth=baseWidth;
+    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.quadraticCurveTo(cx,cy,n.x,n.y);ctx.stroke();
+
+    ctx.strokeStyle="#8b6038";ctx.lineWidth=highlightWidth;
+    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.quadraticCurveTo(cx,cy,n.x,n.y);ctx.stroke();
+
+    // A thinner twig leads into the leaf.
+    const tx=p.x+(n.x-p.x)*.72+nx*2;
+    const ty=p.y+(n.y-p.y)*.72+ny*2;
+    const twigSide=(n.x+n.y)%2?1:-1;
+    const twigWidth=Math.max(2,baseWidth*.45);
+    ctx.strokeStyle="#704a2a";ctx.lineWidth=twigWidth;ctx.lineCap="round";
+    ctx.beginPath();
+    ctx.moveTo(tx,ty);
+    ctx.quadraticCurveTo(
+      tx+nx*twigSide*8+dx/len*8,
+      ty+ny*twigSide*8+dy/len*8,
+      n.x-dx/len*9,
+      n.y-dy/len*9
+    );
+    ctx.stroke();
+  }
+
+  // available connection points
+  if(!gameOver && nodes.length<round){
+    for(const c of candidates()){
+      ctx.fillStyle="#777";ctx.beginPath();ctx.arc(c.x,c.y,7,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle="#aaa";ctx.lineWidth=2;ctx.stroke();
+    }
+  }
+
+  // snap preview: always visible when hovering a valid point
+  if(hover && !gameOver && nodes.length<round){
+    ctx.strokeStyle=colors[selected];ctx.lineWidth=6;ctx.setLineDash([8,7]);
+    ctx.beginPath();ctx.moveTo((hover.parent||stump).x,(hover.parent||stump).y);ctx.lineTo(hover.x,hover.y);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha=.45;ctx.fillStyle=colors[selected];ctx.beginPath();ctx.arc(hover.x,hover.y,R+4,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    ctx.fillStyle=colors[selected];ctx.beginPath();ctx.arc(hover.x,hover.y,R,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle="#fff";ctx.lineWidth=3;ctx.stroke();
+  }
+
+  // stump
+  // Stump rooted into the forest floor.
+  // Roots spread outward so it feels like the remains of a real tree.
+  ctx.strokeStyle="#5a3820";ctx.lineWidth=13;ctx.lineCap="round";
+  const roots=[
+    [[stump.x-20,stump.y+43],[stump.x-70,stump.y+61],[stump.x-112,stump.y+76]],
+    [[stump.x+18,stump.y+45],[stump.x+63,stump.y+60],[stump.x+105,stump.y+72]],
+    [[stump.x-5,stump.y+52],[stump.x-25,stump.y+76],[stump.x-45,stump.y+90]],
+    [[stump.x+7,stump.y+52],[stump.x+28,stump.y+78],[stump.x+55,stump.y+91]]
+  ];
+  for(const r of roots){
+    ctx.beginPath();ctx.moveTo(r[0][0],r[0][1]);ctx.quadraticCurveTo(r[1][0],r[1][1],r[2][0],r[2][1]);ctx.stroke();
+  }
+
+  ctx.fillStyle="#5a3820";
+  ctx.fillRect(stump.x-stump.w/2+5,stump.y,stump.w-10,stump.h);
+  ctx.fillStyle="#76502f";
+  ctx.beginPath();ctx.ellipse(stump.x,stump.y,stump.w/2,14,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle="#4b321f";ctx.lineWidth=3;ctx.stroke();
+
+  // Growth rings.
+  ctx.strokeStyle="#4b321f";ctx.lineWidth=2;
+  ctx.beginPath();ctx.ellipse(stump.x,stump.y,24,7,0,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.ellipse(stump.x,stump.y,12,3.5,0,0,Math.PI*2);ctx.stroke();
+
+  // Bark grooves and moss.
+  for(let i=-20;i<=20;i+=20){
+    ctx.beginPath();ctx.moveTo(stump.x+i,stump.y+8);ctx.lineTo(stump.x+i-4,stump.y+stump.h-4);ctx.stroke();
+  }
+  ctx.fillStyle="#536b38";
+  ctx.beginPath();ctx.ellipse(stump.x-27,stump.y+7,14,5,-.2,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(stump.x+30,stump.y+8,12,4,.2,0,Math.PI*2);ctx.fill();
+
+  // Fine bark texture.
+  ctx.strokeStyle="rgba(54,35,22,.65)";ctx.lineWidth=1.5;
+  for(let i=0;i<9;i++){
+    const bx=stump.x-29+(i%5)*15;
+    ctx.beginPath();ctx.moveTo(bx,stump.y+17+(i%3)*8);
+    ctx.quadraticCurveTo(bx-3,stump.y+35,bx+2,stump.y+54);ctx.stroke();
+  }
+
+  // nodes
+  for(const n of nodes){
+    // Full oak-like leaf: broad lobed silhouette with a strong midrib.
+    const ang=Math.atan2(n.y-(n.parent?n.parent.y:stump.y),n.x-(n.parent?n.parent.x:stump.x));
+    ctx.save();
+    ctx.translate(n.x,n.y);
+    ctx.rotate(ang);
+
+    ctx.fillStyle=n.color;
+    ctx.beginPath();
+    ctx.moveTo(31,0);
+    ctx.bezierCurveTo(25,-7,25,-18,17,-19);
+    ctx.bezierCurveTo(13,-20,12,-10,7,-12);
+    ctx.bezierCurveTo(1,-14,-2,-24,-8,-20);
+    ctx.bezierCurveTo(-13,-17,-8,-9,-14,-8);
+    ctx.bezierCurveTo(-22,-7,-29,-12,-31,-5);
+    ctx.bezierCurveTo(-33,2,-23,4,-19,7);
+    ctx.bezierCurveTo(-15,10,-21,18,-15,20);
+    ctx.bezierCurveTo(-8,22,-5,12,1,11);
+    ctx.bezierCurveTo(8,10,10,20,16,18);
+    ctx.bezierCurveTo(22,16,18,7,23,6);
+    ctx.bezierCurveTo(29,5,33,4,31,0);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle="rgba(255,255,255,.7)";
+    ctx.lineWidth=2;
+    ctx.stroke();
+
+    // Oak leaf midrib and veins.
+    ctx.strokeStyle="rgba(255,255,255,.5)";
+    ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(-25,1);ctx.lineTo(25,1);ctx.stroke();
+    for(const v of [-16,-8,1,10,18]){
+      ctx.beginPath();
+      ctx.moveTo(v,1);
+      ctx.lineTo(v+7,-Math.max(3,Math.abs(v)*.35+4));
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(v,1);
+      ctx.lineTo(v+7,Math.max(3,Math.abs(v)*.35+4));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+canvas.addEventListener("pointermove",e=>{if(gameOver)return;hover=nearestCandidate(pointerPos(e));draw()});
+canvas.addEventListener("pointerleave",()=>{hover=null;draw()});
+canvas.addEventListener("pointerdown",e=>{
+  if(gameOver||nodes.length>=round)return;
+  const p=pointerPos(e),c=nearestCandidate(p);
+  if(!c){msg("Move closer to one of the connection points.","danger");return}
+  nodes.push({x:c.x,y:c.y,color:colors[selected],parent:c.parent});
+  score++;
+  updateScore();
+  hover=null;msg(`${nodes.length}/${round} nodes placed • Score: ${score}`,"good");draw();
+});
+document.querySelectorAll(".color").forEach((el,i)=>el.onclick=()=>{selected=i;document.querySelectorAll(".color").forEach(x=>x.classList.remove("selected"));el.classList.add("selected");draw()});
+document.getElementById("undo").onclick=()=>{if(!gameOver&&nodes.length){
+  nodes.pop();
+  score=Math.max(0,score-1);
+  updateScore();
+  msg(`${nodes.length}/${round} nodes placed • Score: ${score}`);
+  draw();
+}};
+
+function makeGraph(){
+  // The stump is node 0. Every placed node has exactly one parent.
+  return nodes.map((n,i)=>({i:i+1,color:n.color,parent:n.parent?nodes.indexOf(n.parent)+1:0}));
+}
+function childrenOf(graph,id){return graph.filter(n=>n.parent===id)}
+function colorMatch(a,b){return a.color===b.color}
+
+/*
+  TREE containment rule:
+  A previous tree can be embedded in the current tree if its rooted,
+  colored structure can be mapped into the current tree while preserving
+  parent/child relationships and colors.
+
+  Rotating or shifting a branch is therefore allowed: geometry is NOT used
+  for the mathematical rule. The stump/root remains fixed, but a subtree
+  can be attached at any matching node in the larger tree.
+*/
+function subtreeMatch(currentGraph,currentId,oldGraph,oldId,memo){
+  const key=currentId+"|"+oldId;
+  if(memo.has(key))return memo.get(key);
+  if(oldId!==0){
+    const a=oldGraph.find(n=>n.i===oldId),b=currentGraph.find(n=>n.i===currentId);
+    if(!a||!b||a.color!==b.color){memo.set(key,null);return null;}
+  }
+  const oc=childrenOf(oldGraph,oldId),cc=childrenOf(currentGraph,currentId);
+  if(oc.length>cc.length){memo.set(key,null);return null;}
+  const used=new Set();
+  function assign(k,map){
+    if(k===oc.length)return map;
+    for(const child of cc){
+      if(used.has(child.i))continue;
+      const sub=subtreeMatch(currentGraph,child.i,oldGraph,oc[k].i,memo);
+      if(sub){
+        used.add(child.i);
+        const r=assign(k+1,map.concat(sub));
+        if(r)return r;
+        used.delete(child.i);
+      }
+    }
+    return null;
+  }
+  const result=assign(0,[[oldId,currentId]]);
+  memo.set(key,result);return result;
+}
+function findPreviousMatch(currentGraph,oldGraph){return subtreeMatch(currentGraph,0,oldGraph,0,new Map());}
+
+function containsPreviousTree(currentGraph,oldGraph){
+  return !!findPreviousMatch(currentGraph,oldGraph);
+}
+
+const savedTrees=[];
+// ===== GLOBAL LEADERBOARD =====
+// Paste your Supabase Project URL and PUBLISHABLE key here.
+// NEVER put a Supabase secret/service-role key in this HTML file.
+const SUPABASE_URL="https://ttlbeteukhgzskryyat.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_3DCPeWb3wUEAOtyTZ_tw9A_zvIQZYEc";
+const leaderboardEnabled=!SUPABASE_URL.includes("PASTE_YOUR")&&!SUPABASE_PUBLISHABLE_KEY.includes("PASTE_YOUR");
+const leaderboardTable=`${SUPABASE_URL}/rest/v1/tree3_leaderboard`;
+const supabaseHeaders={"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":`Bearer ${SUPABASE_PUBLISHABLE_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal"};
+const playerNameInput=document.getElementById("playerName"),onlineStatus=document.getElementById("onlineStatus"),leaderboardPanel=document.getElementById("leaderboardPanel"),leaderboardRows=document.getElementById("leaderboardRows");
+let playerName=localStorage.getItem("tree3PlayerName")||"";
+let submittedGlobalBest=Number(localStorage.getItem("tree3GlobalBest")||0);
+playerNameInput.value=playerName;
+function setOnlineStatus(t,bad=false){onlineStatus.textContent=t;onlineStatus.className="onlineStatus"+(bad?" bad":"");}
+function cleanPlayerName(n){return n.trim().replace(/[^a-zA-Z0-9 _-]/g,"").slice(0,20);}
+function savePlayerName(){playerName=cleanPlayerName(playerNameInput.value)||"Anonymous";playerNameInput.value=playerName;localStorage.setItem("tree3PlayerName",playerName);setOnlineStatus(leaderboardEnabled?"Name saved • Online leaderboard ready.":"Name saved • Add Supabase keys to enable the leaderboard.",!leaderboardEnabled);}
+async function submitGlobalScore(force=false){
+  if(!leaderboardEnabled)return;
+  if(!playerName)savePlayerName();
+  if(!playerName||playerName==="Anonymous")return;
+  if(!force&&score<=submittedGlobalBest)return;
+  try{
+    const res=await fetch(leaderboardTable,{method:"POST",headers:supabaseHeaders,body:JSON.stringify({player_name:playerName,score:score})});
+    if(!res.ok){const text=await res.text();throw new Error(text||`HTTP ${res.status}`);}
+    submittedGlobalBest=Math.max(submittedGlobalBest,score);
+    localStorage.setItem("tree3GlobalBest",String(submittedGlobalBest));
+    setOnlineStatus("Score submitted! Your best: "+submittedGlobalBest);
+  }catch(error){setOnlineStatus("Could not submit score: "+error.message,true);}
+}
+function escapeHtml(v){const d=document.createElement("div");d.textContent=v;return d.innerHTML;}
+async function loadLeaderboard(){
+  if(!leaderboardEnabled){leaderboardRows.innerHTML='<div class="leaderboardEmpty">Set your Supabase URL and publishable key in the game code first.</div>';return;}
+  leaderboardRows.innerHTML='<div class="leaderboardEmpty">Loading…</div>';
+  try{
+    const url=leaderboardTable+'?select=player_name,score,created_at&order=score.desc&order=created_at.asc&limit=100';
+    const res=await fetch(url,{headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":`Bearer ${SUPABASE_PUBLISHABLE_KEY}`}});
+    if(!res.ok){const text=await res.text();throw new Error(text||`HTTP ${res.status}`);}
+    const data=await res.json();
+    if(!data.length){leaderboardRows.innerHTML='<div class="leaderboardEmpty">No scores yet. Be the first!</div>';return;}
+    leaderboardRows.innerHTML=data.map((row,i)=>{const rank=i+1,medal=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank,me=playerName&&row.player_name===playerName&&Number(row.score)===submittedGlobalBest;return `<div class="leaderboardRow${me?' leaderboardMe':''}"><div class="leaderboardRank">${medal}</div><div>${escapeHtml(row.player_name)}</div><div class="leaderboardScore">${Number(row.score).toLocaleString()}</div></div>`;}).join("");
+  }catch(error){leaderboardRows.innerHTML='<div class="leaderboardEmpty">Could not load leaderboard.<br>'+escapeHtml(error.message)+'</div>';}
+}
+function openLeaderboard(){leaderboardPanel.hidden=false;loadLeaderboard();}function closeLeaderboard(){leaderboardPanel.hidden=true;}
+document.getElementById("saveName").onclick=savePlayerName;playerNameInput.addEventListener("keydown",e=>{if(e.key==="Enter")savePlayerName();});document.getElementById("leaderboardBtn").onclick=openLeaderboard;document.getElementById("refreshLeaderboard").onclick=loadLeaderboard;document.getElementById("closeLeaderboard").onclick=closeLeaderboard;leaderboardPanel.addEventListener("click",e=>{if(e.target===leaderboardPanel)closeLeaderboard();});setOnlineStatus(leaderboardEnabled?"Online leaderboard ready.":"Online leaderboard not configured yet.",!leaderboardEnabled);
+
+
+function snapshotTree(){
+  return nodes.map(n=>({
+    x:n.x,
+    y:n.y,
+    color:n.color,
+    parentIndex:n.parent ? nodes.indexOf(n.parent) : -1
+  }));
+}
+
+function drawGalleryTree(canvas,data){
+  const c=canvas.getContext("2d");
+  const sx=canvas.width/820, sy=canvas.height/650;
+  const scale=Math.min(sx,sy);
+  c.clearRect(0,0,canvas.width,canvas.height);
+  c.fillStyle="#151515";
+  c.fillRect(0,0,canvas.width,canvas.height);
+
+  const X=x=>x*sx, Y=y=>y*sy;
+  const stumpX=stump.x*sx, stumpY=stump.y*sy;
+
+  for(const n of data){
+    const parent=n.parentIndex>=0 ? data[n.parentIndex] : null;
+    const px=parent ? X(parent.x) : stumpX;
+    const py=parent ? Y(parent.y) : stumpY;
+
+    c.strokeStyle="#aaa";
+    c.lineWidth=8*scale;
+    c.lineCap="round";
+    c.beginPath();
+    c.moveTo(px,py);
+    c.lineTo(X(n.x),Y(n.y));
+    c.stroke();
+
+    c.strokeStyle="#555";
+    c.lineWidth=2*scale;
+    c.beginPath();
+    c.moveTo(px,py);
+    c.lineTo(X(n.x),Y(n.y));
+    c.stroke();
+  }
+
+  c.fillStyle="#76502f";
+  c.fillRect(stumpX-39*sx,stumpY,78*sx,55*sy);
+  c.fillStyle="#9a7048";
+  c.beginPath();
+  c.ellipse(stumpX,stumpY,39*sx,10*sy,0,0,Math.PI*2);
+  c.fill();
+
+  for(const n of data){
+    c.fillStyle=n.color;
+    c.beginPath();
+    c.arc(X(n.x),Y(n.y),21*scale,0,Math.PI*2);
+    c.fill();
+    c.strokeStyle="#fff";
+    c.lineWidth=2*scale;
+    c.stroke();
+  }
+}
+
+function openTreeZoom(tree,number){
+  const overlay=document.getElementById("galleryZoom");
+  const canvas=document.getElementById("zoomCanvas");
+  drawGalleryTree(canvas,tree);
+  document.getElementById("zoomLabel").textContent=
+    `Tree ${number} • ${tree.length} node${tree.length===1?"":"s"}`;
+  overlay.hidden=false;
+}
+
+function refreshGallery(){
+  const grid=document.getElementById("galleryGrid");
+  const empty=document.getElementById("galleryEmpty");
+  if(!grid)return;
+
+  grid.innerHTML="";
+  if(empty) empty.hidden=savedTrees.length>0;
+
+  savedTrees.forEach((tree,index)=>{
+    const card=document.createElement("div");
+    card.className="galleryCard";
+    card.setAttribute("role","button");
+    card.setAttribute("tabindex","0");
+
+    const canvas=document.createElement("canvas");
+    canvas.width=360;
+    canvas.height=285;
+
+    const label=document.createElement("div");
+    label.className="galleryLabel";
+    label.textContent=`Tree ${index+1}`;
+
+    const sub=document.createElement("div");
+    sub.className="gallerySub";
+    sub.textContent=`${tree.length} node${tree.length===1?"":"s"}`;
+
+    card.append(canvas,label,sub);
+
+    card.addEventListener("click",()=>openTreeZoom(tree,index+1));
+    card.addEventListener("keydown",e=>{
+      if(e.key==="Enter"||e.key===" "){
+        e.preventDefault();
+        openTreeZoom(tree,index+1);
+      }
+    });
+
+    grid.appendChild(card);
+    drawGalleryTree(canvas,tree);
+  });
+}
+
+const galleryZoom=document.getElementById("galleryZoom");
+if(galleryZoom){
+  document.getElementById("closeZoom").addEventListener("click",()=>{
+    galleryZoom.hidden=true;
+  });
+  galleryZoom.addEventListener("click",e=>{
+    if(e.target===galleryZoom)galleryZoom.hidden=true;
+  });
+  document.addEventListener("keydown",e=>{
+    if(e.key==="Escape"&&!galleryZoom.hidden)galleryZoom.hidden=true;
+  });
+}
+
+function drawMatchHighlights(matchPairs){
+  if(!matchPairs || !matchPairs.length)return;
+
+  const graph=makeGraph();
+
+  // subtreeMatch returns [oldId,currentId] pairs.
+  const currentIds=new Set(
+    matchPairs.map(pair=>Array.isArray(pair)?pair[1]:pair)
+  );
+
+  for(const id of currentIds){
+    if(id===0)continue;
+
+    const n=graph.find(x=>x.i===id);
+    if(!n)continue;
+
+    // Find the actual live node by graph id (graph id = array index + 1).
+    const liveNode=nodes[id-1];
+    if(!liveNode)continue;
+
+    ctx.save();
+    ctx.translate(liveNode.x,liveNode.y);
+
+    // Heavy black outline, deliberately much larger than the normal leaf stroke.
+    ctx.strokeStyle="#000";
+    ctx.lineWidth=8;
+    ctx.lineJoin="round";
+    ctx.lineCap="round";
+
+    const a=Math.atan2(
+      liveNode.y-(liveNode.parent?liveNode.parent.y:stump.y),
+      liveNode.x-(liveNode.parent?liveNode.parent.x:stump.x)
+    );
+    ctx.rotate(a);
+
+    // Same oak-leaf silhouette used by the normal renderer.
+    ctx.beginPath();
+    ctx.moveTo(31,0);
+    ctx.bezierCurveTo(25,-7,25,-18,17,-19);
+    ctx.bezierCurveTo(13,-20,12,-10,7,-12);
+    ctx.bezierCurveTo(1,-14,-2,-24,-8,-20);
+    ctx.bezierCurveTo(-13,-17,-8,-9,-14,-8);
+    ctx.bezierCurveTo(-22,-7,-29,-12,-31,-5);
+    ctx.bezierCurveTo(-33,2,-23,4,-19,7);
+    ctx.bezierCurveTo(-15,10,-21,18,-15,20);
+    ctx.bezierCurveTo(-8,22,-5,12,1,11);
+    ctx.bezierCurveTo(8,10,10,20,16,18);
+    ctx.bezierCurveTo(22,16,18,7,23,6);
+    ctx.bezierCurveTo(29,5,33,4,31,0);
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.restore();
+  }
+}
+
+function submit(){
+  if(gameOver)return;
+  if(nodes.length!==round){
+    msg(`You need exactly ${round} nodes before submitting.`,"danger");
+    return;
+  }
+
+  const cur=makeGraph();
+
+  let matchedTreeIndex=-1;
+  let matchedNodeIds=null;
+
+  for(let i=0;i<history.length;i++){
+    const match=findPreviousMatch(cur,history[i]);
+    if(match){
+      matchedTreeIndex=i;
+      matchedNodeIds=match;
+      break;
+    }
+  }
+
+  if(matchedTreeIndex>=0){
+    gameOver=true;
+    hover=null;
+    draw();
+    drawMatchHighlights(matchedNodeIds);
+    submitGlobalScore(true);
+    msg(`GAME OVER — Tree ${matchedTreeIndex+1} is contained in this tree. The matching nodes have a black outline.`,"danger");
+    return;
+  }
+
+  // Save an independent copy of the completed tree BEFORE clearing nodes.
+  const completedTree=snapshotTree();
+  savedTrees.push(completedTree);
+  history.push(cur);
+  refreshGallery();
+  submitGlobalScore();
+
+  const oldTrees=document.getElementById("trees");
+  if(oldTrees){
+    const row=document.createElement("div");
+    row.className="treeRow";
+    row.textContent=`Tree ${round}`;
+    oldTrees.prepend(row);
+  }
+
+  round++;
+  document.getElementById("round").textContent=round;
+  nodes=[];
+  hover=null;
+  msg(`Round ${round}: build a tree with ${round} nodes.`,"good");
+  draw();
+}
+
+document.getElementById("submit").onclick=submit;
+document.getElementById("restart").addEventListener("click",()=>{
+  round=1;
+  score=0;
+  nodes=[];
+  history=[];
+  savedTrees.length=0;
+  hover=null;
+  gameOver=false;
+
+  document.getElementById("round").textContent="1";
+  updateScore();
+  const oldTrees=document.getElementById("trees");
+  if(oldTrees) oldTrees.innerHTML="";
+
+  refreshGallery();
+  msg("Choose a color, then click a connection point.");
+  draw();
+});
+draw();
+</script>
+</body>
+</html>
