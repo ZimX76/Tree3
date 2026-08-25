@@ -794,8 +794,8 @@ const accountId=existing[0].id;
 
       const update=await fetch(
         leaderboardTable+
-        "?device_id=eq."+
-        encodeURIComponent(deviceId),
+        "?id=eq."+
+encodeURIComponent(accountId),
         {
           method:"PATCH",
           headers:{
