@@ -760,15 +760,15 @@ async function submitGlobalScore(force=false){
   try{
 
     const check=await fetch(
-      leaderboardTable+
-      "?select=score&device_id=eq."+
-      encodeURIComponent(deviceId),
-      {
-        headers:{
-          "apikey":SUPABASE_PUBLISHABLE_KEY
-        }
-      }
-    );
+  leaderboardTable+
+  "?select=id,player_name,score,device_id&device_id=eq."+
+  encodeURIComponent(deviceId),
+  {
+    headers:{
+      "apikey":SUPABASE_PUBLISHABLE_KEY
+    }
+  }
+);
 
     if(!check.ok){
       throw new Error(await check.text());
