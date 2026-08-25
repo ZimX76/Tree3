@@ -779,6 +779,7 @@ async function submitGlobalScore(force=false){
     if(existing.length>0){
 
       const oldScore=Number(existing[0].score);
+const accountId=existing[0].id;
 
       if(score<=oldScore){
         submittedGlobalBest=oldScore;
