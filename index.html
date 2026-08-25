@@ -552,19 +552,7 @@ async function submitGlobalScore(force=false){
       true
     );
   }
-}
-  if(!leaderboardEnabled)return;
-  if(!playerName)savePlayerName();
-  if(!playerName||playerName==="Anonymous")return;
-  if(!force&&score<=submittedGlobalBest)return;
-  try{
-    const res=await fetch(leaderboardTable,{method:"POST",headers:supabaseHeaders,body:JSON.stringify({player_name:playerName,score:score})});
-    if(!res.ok){const text=await res.text();throw new Error(text||`HTTP ${res.status}`);}
-    submittedGlobalBest=Math.max(submittedGlobalBest,score);
-    localStorage.setItem("tree3GlobalBest",String(submittedGlobalBest));
-    setOnlineStatus("Score submitted! Your best: "+submittedGlobalBest);
-  }catch(error){setOnlineStatus("Could not submit score: "+error.message,true);}
-}
+} 
 function escapeHtml(v){const d=document.createElement("div");d.textContent=v;return d.innerHTML;}
 async function loadLeaderboard(){
   if(!leaderboardEnabled){
